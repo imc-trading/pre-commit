@@ -268,6 +268,29 @@ def _get_diff() -> bytes:
     return out
 
 
+def _get_active_hooks(
+        config: dict[str, Any],
+        hooks: Sequence[Hook],
+        skips: set[str],
+        args: argparse.Namespace,
+) -> Sequence[Hook]:
+    classifier = Classifier.from_config(
+        _all_filenames(args), config['files'], config['exclude'],
+    )
+    to_install = []
+    for hook in hooks:
+        filenames = classifier.filenames_for_hook(hook)
+        if (
+            hook.always_run or (
+                hook.id not in skips and
+                hook.alias not in skips and
+                filenames
+            )
+        ):
+            to_install.append(hook)
+    return to_install
+
+
 def _run_hooks(
         config: dict[str, Any],
         hooks: Sequence[Hook],
@@ -420,11 +443,7 @@ def run(
             return 1
 
         skips = _get_skips(environ)
-        to_install = [
-            hook
-            for hook in hooks
-            if hook.id not in skips and hook.alias not in skips
-        ]
+        to_install = _get_active_hooks(config, hooks, skips, args)
         install_hook_envs(to_install, store)
 
         return _run_hooks(config, hooks, skips, args)
